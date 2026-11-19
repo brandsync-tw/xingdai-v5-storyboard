@@ -1,0 +1,48 @@
+name: Publish storyboard to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download fixed image assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/assets
+          cp index.html site/index.html
+          touch site/.nojekyll
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab2f3e2/xCTh905v0SRJT21J0qmAq_bkKntxqg.png' -o 'site/assets/scene-master.png'
+          test "$(wc -c < 'site/assets/scene-master.png')" -gt 10000
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab2f3e1/drJqRodPkCvgQWElm4bQW_%3F%3F%3F%3F_%3F%3F%3F_%3F%3F%3F%3F%3F%3F%3F.png' -o 'site/assets/face-reference.png'
+          test "$(wc -c < 'site/assets/face-reference.png')" -gt 10000
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab306dc/nDEDdW6BbL3yhFylyjIe4_a_clean_modern_high_quality_brand_logo_on_a_whit.png' -o 'site/assets/optimized-logo.png'
+          test "$(wc -c < 'site/assets/optimized-logo.png')" -gt 10000
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab3057c/rxapB-BdP5sBagoEQh2AM_CT0hZfJp.png' -o 'site/assets/A-notes.png'
+          test "$(wc -c < 'site/assets/A-notes.png')" -gt 10000
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab3057c/IxVx0_utLoOyW562rfNs4_zsyGqe1U.png' -o 'site/assets/B-phone.png'
+          test "$(wc -c < 'site/assets/B-phone.png')" -gt 10000
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab3057c/B-K9y-LJ8UI3tiABevsib_Smlfwa6R.png' -o 'site/assets/C-stand.png'
+          test "$(wc -c < 'site/assets/C-stand.png')" -gt 10000
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab3057c/KGq0DFVJXLiKr9GrAgzqi_hWrd5SRY.png' -o 'site/assets/D-side.png'
+          test "$(wc -c < 'site/assets/D-side.png')" -gt 10000
+          echo "All 7 image assets downloaded"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
