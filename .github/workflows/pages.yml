@@ -39,7 +39,9 @@ jobs:
           test "$(wc -c < 'site/assets/C-stand.png')" -gt 10000
           curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab3057c/KGq0DFVJXLiKr9GrAgzqi_hWrd5SRY.png' -o 'site/assets/D-side.png'
           test "$(wc -c < 'site/assets/D-side.png')" -gt 10000
-          echo "All 7 image assets downloaded"
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab31da9/sfW5msFs4hNd2AWFAEiep_video.mp4' -o 'site/assets/A-to-B-test.mp4'
+          test "$(wc -c < 'site/assets/A-to-B-test.mp4')" -gt 100000
+          echo "All 7 images and A-to-B video downloaded"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
