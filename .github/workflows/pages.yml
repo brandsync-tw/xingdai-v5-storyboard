@@ -43,7 +43,9 @@ jobs:
           test "$(wc -c < 'site/assets/A-to-B-test.mp4')" -gt 100000
           curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab31e3e/yyzDgfGx7-1WgfreFLJeC_video.mp4' -o 'site/assets/A-fixed-camera-test.mp4'
           test "$(wc -c < 'site/assets/A-fixed-camera-test.mp4')" -gt 100000
-          echo "All 7 images and two motion tests downloaded"
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab31e82/vuNbL04R_OT-T6e3i80Cu_video.mp4' -o 'site/assets/B-to-C-fixed-standup.mp4'
+          test "$(wc -c < 'site/assets/B-to-C-fixed-standup.mp4')" -gt 100000
+          echo "All 7 images and three motion tests downloaded"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
