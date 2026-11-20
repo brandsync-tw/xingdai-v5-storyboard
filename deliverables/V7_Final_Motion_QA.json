@@ -1,0 +1,26 @@
+[
+  {
+    "range_s": [
+      1,
+      5
+    ],
+    "tracked_features": 285,
+    "median_background_displacement_px": 15.9
+  },
+  {
+    "range_s": [
+      11.5,
+      15
+    ],
+    "tracked_features": 174,
+    "median_background_displacement_px": 68.64
+  },
+  {
+    "range_s": [
+      21,
+      25
+    ],
+    "tracked_features": 165,
+    "median_background_displacement_px": 43.88
+  }
+]
