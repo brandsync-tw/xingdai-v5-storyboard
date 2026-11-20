@@ -48,7 +48,13 @@ jobs:
           test "$(wc -c < 'site/assets/B-to-C-fixed-standup.mp4')" -gt 100000
           curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab33718/8XuzhM6IPC-PTH8ApQTXE_video.mp4' -o 'site/assets/C-to-D-turn-test.mp4'
           test "$(wc -c < 'site/assets/C-to-D-turn-test.mp4')" -gt 100000
-          echo "All 7 images and four motion tests downloaded"
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab33d2b/dapFPpGWunw_uNX5fTO3G_SIgOCS83.png' -o 'site/assets/V6-office-master.png'
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab33d30/37ItsdrgA659bnupHCCgk_lGOTJpFT.png' -o 'site/assets/V6-consultation.png'
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab33d30/ASdnanKrAfqQnj5zd3VKz_BrCxxLNB.png' -o 'site/assets/V6-tablet.png'
+          test "$(wc -c < 'site/assets/V6-office-master.png')" -gt 10000
+          test "$(wc -c < 'site/assets/V6-consultation.png')" -gt 10000
+          test "$(wc -c < 'site/assets/V6-tablet.png')" -gt 10000
+          echo "V6 scene assets and V5 continuity media downloaded"
       - name: Include verified complete V5 MP4
         shell: bash
         run: |
