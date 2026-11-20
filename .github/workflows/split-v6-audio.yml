@@ -1,0 +1,34 @@
+name: Split V6 original narration into lip-sync segments
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/split-v6-audio.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Split at natural pauses
+        run: |
+          set -euo pipefail
+          test -s deliverables/V6_original_Gemini_voice.wav
+          ffmpeg -hide_banner -loglevel error -y -ss 0 -t 10.87 -i deliverables/V6_original_Gemini_voice.wav -ac 1 -ar 24000 -c:a pcm_s16le deliverables/V6_voice_01.wav
+          ffmpeg -hide_banner -loglevel error -y -ss 10.87 -t 9.77 -i deliverables/V6_original_Gemini_voice.wav -ac 1 -ar 24000 -c:a pcm_s16le deliverables/V6_voice_02.wav
+          ffmpeg -hide_banner -loglevel error -y -ss 20.64 -t 7.41 -i deliverables/V6_original_Gemini_voice.wav -ac 1 -ar 24000 -c:a pcm_s16le deliverables/V6_voice_03.wav
+          for f in deliverables/V6_voice_0{1,2,3}.wav; do test -s "$f"; ffprobe -v error -show_entries format=duration -of csv=p=0 "$f"; done
+      - name: Publish segment WAVs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/V6_voice_01.wav deliverables/V6_voice_02.wav deliverables/V6_voice_03.wav
+          git commit -m "Add original Gemini voice segments for V6 outdoor talking-head lip sync" || exit 0
+          git push origin HEAD:main
