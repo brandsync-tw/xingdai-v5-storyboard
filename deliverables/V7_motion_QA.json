@@ -1,0 +1,50 @@
+[
+  {
+    "clip": "work/v7/walk.mp4",
+    "duration": 10.042,
+    "background_motion": [
+      {
+        "features": 257,
+        "median_px": 21.57,
+        "p75_px": 37.09
+      },
+      {
+        "features": 299,
+        "median_px": 14.21,
+        "p75_px": 24.93
+      }
+    ]
+  },
+  {
+    "clip": "work/v7/side.mp4",
+    "duration": 10.042,
+    "background_motion": [
+      {
+        "features": 150,
+        "median_px": 47.49,
+        "p75_px": 118.58
+      },
+      {
+        "features": 30,
+        "median_px": 29.19,
+        "p75_px": 81.91
+      }
+    ]
+  },
+  {
+    "clip": "work/v7/close.mp4",
+    "duration": 8.042,
+    "background_motion": [
+      {
+        "features": 139,
+        "median_px": 22.2,
+        "p75_px": 63.97
+      },
+      {
+        "features": 163,
+        "median_px": 43.84,
+        "p75_px": 74.83
+      }
+    ]
+  }
+]
