@@ -1,0 +1,70 @@
+name: Finish V7 with visibly walking cutaway no additional fal generation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/v7-dynamic-cut.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Edit motion and original voice without changing duration
+        run: |
+          set -euo pipefail
+          mkdir -p work/v7/dynamic deliverables
+          test -s deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4
+          test -s deliverables/V7_StrongWalk_10p88s_NoAudio.mp4
+          test -s deliverables/V6_original_Gemini_voice.wav
+          # First 2 seconds original lip-synced presenter; 3 seconds genuine full-body walking B-roll;
+          # 5s-end original lip-synced presenter and original brand outro. No timing shift.
+          ffmpeg -hide_banner -loglevel error -y -ss 0 -t 2 -i deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4 \
+            -vf "fps=25,scale=1080:1920:flags=lanczos,format=yuv420p" -frames:v 50 -an \
+            -c:v libx264 -preset medium -crf 18 -profile:v high -pix_fmt yuv420p -video_track_timescale 12800 work/v7/dynamic/01.mp4
+          ffmpeg -hide_banner -loglevel error -y -ss 1 -t 3 -i deliverables/V7_StrongWalk_10p88s_NoAudio.mp4 \
+            -vf "fps=25,scale=1080:1920:flags=lanczos,format=yuv420p" -frames:v 75 -an \
+            -c:v libx264 -preset medium -crf 18 -profile:v high -pix_fmt yuv420p -video_track_timescale 12800 work/v7/dynamic/02.mp4
+          ffmpeg -hide_banner -loglevel error -y -ss 5 -i deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4 \
+            -vf "fps=25,scale=1080:1920:flags=lanczos,format=yuv420p" -frames:v 641 -an \
+            -c:v libx264 -preset medium -crf 18 -profile:v high -pix_fmt yuv420p -video_track_timescale 12800 work/v7/dynamic/03.mp4
+          printf "file '01.mp4'\nfile '02.mp4'\nfile '03.mp4'\n" > work/v7/dynamic/list.txt
+          (cd work/v7/dynamic && ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i list.txt -c copy ../silent_dynamic.mp4)
+          ffmpeg -hide_banner -loglevel error -y -i work/v7/silent_dynamic.mp4 -i deliverables/V6_original_Gemini_voice.wav \
+            -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 256k -ar 48000 \
+            -t 30.64 -movflags +faststart deliverables/XingDai_V7_Outdoor_DynamicCut_1080p_NoSubtitles.mp4
+          ffmpeg -hide_banner -loglevel error -y -ss 3 -i deliverables/XingDai_V7_Outdoor_DynamicCut_1080p_NoSubtitles.mp4 \
+            -frames:v 1 -q:v 2 deliverables/XingDai_V7_Dynamic_Preview.jpg
+      - name: Verify and decode
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,subprocess
+          p='deliverables/XingDai_V7_Outdoor_DynamicCut_1080p_NoSubtitles.mp4'
+          d=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_format','-show_streams','-of','json',p]))
+          duration=float(d['format']['duration'])
+          v=[s for s in d['streams'] if s['codec_type']=='video']
+          a=[s for s in d['streams'] if s['codec_type']=='audio']
+          assert abs(duration-30.64)<.05, duration
+          assert len(v)==1 and len(a)==1
+          assert (v[0]['width'],v[0]['height'])==(1080,1920)
+          assert os.path.getsize(p)>10000000
+          print('VERIFIED_DYNAMIC',duration,os.path.getsize(p),v[0]['avg_frame_rate'])
+          PY
+          ffmpeg -hide_banner -loglevel error -i deliverables/XingDai_V7_Outdoor_DynamicCut_1080p_NoSubtitles.mp4 -f null - </dev/null
+      - name: Commit completed video
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/XingDai_V7_Outdoor_DynamicCut_1080p_NoSubtitles.mp4 deliverables/XingDai_V7_Dynamic_Preview.jpg
+          git commit -m "Deliver V7 with visibly walking cutaway, real moving shots and unchanged narration" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
