@@ -64,6 +64,9 @@ jobs:
           test -s deliverables/XingDai_V5_Full_NoSubtitles.mp4
           cp deliverables/XingDai_V5_Full_NoSubtitles.mp4 site/assets/XingDai_V5_Full_NoSubtitles.mp4
           cp deliverables/V5-final-preview.jpg site/assets/V5-final-preview.jpg
+          cp deliverables/XingDai_V6_Outdoor_Final_NoSubtitles.mp4 site/assets/XingDai_V6_Outdoor_Final_NoSubtitles.mp4
+          cp deliverables/XingDai_V6_Outdoor_Preview.jpg site/assets/XingDai_V6_Outdoor_Preview.jpg
+          test "$(wc -c < site/assets/XingDai_V6_Outdoor_Final_NoSubtitles.mp4)" -gt 1000000
           test "$(wc -c < site/assets/XingDai_V5_Full_NoSubtitles.mp4)" -gt 1000000
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
