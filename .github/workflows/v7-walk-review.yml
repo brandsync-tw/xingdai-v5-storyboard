@@ -1,0 +1,55 @@
+name: Evaluate stronger walking shot for V7
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/v7-walk-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --break-system-packages -q opencv-python-headless numpy
+      - name: Download and review new walking shot
+        run: |
+          set -euo pipefail
+          mkdir -p work/v7 deliverables
+          curl --fail --location --retry 5 --silent --show-error 'https://v3b.fal.media/files/b/0ab33ef0/NcZzaoLRNVrBxs9Xy57NL_video.mp4' -o work/v7/walk_strong.mp4
+          ffmpeg -hide_banner -loglevel error -y -i work/v7/walk_strong.mp4 \
+            -vf "select='eq(n,25)+eq(n,75)+eq(n,125)+eq(n,175)+eq(n,225)',scale=180:320,tile=5x1" \
+            -vsync vfr -frames:v 1 -q:v 5 deliverables/V7_Strong_Walk_Contact.jpg
+          python3 - <<'PY'
+          import cv2,numpy as np,json
+          p='work/v7/walk_strong.mp4';cap=cv2.VideoCapture(p);fps=cap.get(cv2.CAP_PROP_FPS);dur=cap.get(cv2.CAP_PROP_FRAME_COUNT)/fps
+          results=[]
+          for ta,tb in [(1,4),(4,7),(7,9)]:
+              imgs=[]
+              for t in (ta,tb):
+                  cap.set(cv2.CAP_PROP_POS_MSEC,t*1000);ok,f=cap.read()
+                  if not ok:raise RuntimeError('Cannot decode frame')
+                  imgs.append(cv2.cvtColor(cv2.resize(f,(450,800)),cv2.COLOR_BGR2GRAY))
+              a,b=imgs;mask=np.zeros_like(a);mask[120:680,:110]=255;mask[120:680,340:]=255
+              pts=cv2.goodFeaturesToTrack(a,maxCorners=300,qualityLevel=.01,minDistance=7,mask=mask)
+              nxt,st,_=cv2.calcOpticalFlowPyrLK(a,b,pts,None,winSize=(21,21),maxLevel=4)
+              disp=np.linalg.norm(nxt[st.reshape(-1)==1]-pts[st.reshape(-1)==1],axis=1)
+              results.append({'range':[ta,tb],'median_px':round(float(np.median(disp)),2)})
+          print('STRONG_WALK_MOTION',json.dumps(results))
+          with open('deliverables/V7_Strong_Walk_Motion.json','w') as f:json.dump(results,f)
+          assert max(x['median_px'] for x in results)>10
+          PY
+      - name: Publish QA
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/V7_Strong_Walk_Contact.jpg deliverables/V7_Strong_Walk_Motion.json
+          git commit -m "Evaluate stronger moving-camera walking take for V7" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
