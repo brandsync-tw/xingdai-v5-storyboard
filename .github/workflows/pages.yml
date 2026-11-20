@@ -73,6 +73,8 @@ jobs:
           cp deliverables/XingDai_V7_Outdoor_Preview.jpg site/assets/V7-preview.jpg
           cp deliverables/XingDai_V7_Outdoor_DynamicCut_1080p_NoSubtitles.mp4 site/assets/XingDai_V7_Outdoor_DynamicCut_1080p_NoSubtitles.mp4
           cp deliverables/XingDai_V7_Dynamic_Preview.jpg site/assets/V7-dynamic-preview.jpg
+          cp deliverables/XingDai_V7_Outdoor_ContinuityFix_1080p_NoSubtitles.mp4 site/assets/XingDai_V7_Outdoor_ContinuityFix_1080p_NoSubtitles.mp4
+          cp deliverables/XingDai_V7_ContinuityFix_Preview.jpg site/assets/V7-continuity-preview.jpg
           test "$(wc -c < site/assets/XingDai_V7_Outdoor_DynamicCut_1080p_NoSubtitles.mp4)" -gt 10000000
           test "$(wc -c < site/assets/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4)" -gt 10000000
           test "$(wc -c < site/assets/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4)" -gt 10000000
