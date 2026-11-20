@@ -1,0 +1,30 @@
+name: Prepare V6 original narration asset
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/prepare-v6-audio.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Extract preserved Gemini narration
+        run: |
+          set -euo pipefail
+          mkdir -p deliverables
+          ffmpeg -hide_banner -loglevel error -y -i deliverables/XingDai_V5_Full_NoSubtitles.mp4 -vn -ar 24000 -ac 1 -c:a pcm_s16le deliverables/V6_original_Gemini_voice.wav
+          ffprobe -v error -show_entries format=duration -of default=nw=1 deliverables/V6_original_Gemini_voice.wav
+          test "$(wc -c < deliverables/V6_original_Gemini_voice.wav)" -gt 1000000
+      - name: Publish audio
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/V6_original_Gemini_voice.wav
+          git commit -m "Publish unchanged V5 Gemini narration audio for V6 lip sync" || exit 0
+          git push origin HEAD:main
