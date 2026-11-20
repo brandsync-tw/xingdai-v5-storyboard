@@ -1,0 +1,109 @@
+name: Render V7 outdoor moving-camera final commercial
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/render-v7-final.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install render and motion QA tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --break-system-packages -q opencv-python-headless numpy
+      - name: Download moving-camera footage with original voice lip-sync
+        run: |
+          set -euo pipefail
+          mkdir -p work/v7/final deliverables
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error 'https://v3b.fal.media/files/b/0ab33ec9/uba-GfIfAiRxIQEmIJwsq_T83mdvT5.mp4' -o work/v7/synced.mp4
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error 'https://v3b.fal.media/files/b/0ab306dc/nDEDdW6BbL3yhFylyjIe4_a_clean_modern_high_quality_brand_logo_on_a_whit.png' -o work/v7/logo.png
+          test -s deliverables/V6_original_Gemini_voice.wav
+          test "$(wc -c < work/v7/synced.mp4)" -gt 1000000
+          ffprobe -v error -show_entries format=duration -show_entries stream=width,height,r_frame_rate -of default=nw=1 work/v7/synced.mp4
+      - name: Check camera movement survives lipsync processing
+        run: |
+          python3 - <<'PY'
+          import cv2,numpy as np,json
+          p='work/v7/synced.mp4'
+          cap=cv2.VideoCapture(p)
+          fps=cap.get(cv2.CAP_PROP_FPS); n=cap.get(cv2.CAP_PROP_FRAME_COUNT)
+          duration=n/fps
+          assert duration>27.7, duration
+          checks=[]
+          for ta,tb in [(1,5),(11.5,15),(21,25)]:
+              frames=[]
+              for t in [ta,tb]:
+                  cap.set(cv2.CAP_PROP_POS_MSEC,1000*t)
+                  ok,f=cap.read()
+                  if not ok:raise RuntimeError('Could not decode motion QA frame')
+                  frames.append(cv2.cvtColor(cv2.resize(f,(450,800)),cv2.COLOR_BGR2GRAY))
+              a,b=frames
+              mask=np.zeros_like(a)
+              mask[120:680,0:110]=255;mask[120:680,340:450]=255
+              pts=cv2.goodFeaturesToTrack(a,maxCorners=300,qualityLevel=.01,minDistance=7,mask=mask)
+              if pts is None or len(pts)<8:raise RuntimeError('Not enough fixed background features')
+              nxt,st,_=cv2.calcOpticalFlowPyrLK(a,b,pts,None,winSize=(21,21),maxLevel=4)
+              good=st.reshape(-1)==1
+              shift=np.linalg.norm(nxt[good]-pts[good],axis=1)
+              median=float(np.median(shift))
+              checks.append({'range_s':[ta,tb],'tracked_features':int(good.sum()),'median_background_displacement_px':round(median,2)})
+          cap.release()
+          print('V7_POST_LIPSYNC_MOTION_QA',json.dumps(checks))
+          with open('deliverables/V7_Final_Motion_QA.json','w') as f:json.dump(checks,f,indent=2)
+          assert all(x['median_background_displacement_px']>=3 for x in checks),'Background remains static after lip sync'
+          PY
+      - name: Build high-quality 30.64s video and original Gemini audio
+        run: |
+          set -euo pipefail
+          ffmpeg -hide_banner -loglevel error -y -i work/v7/synced.mp4 \
+            -vf "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,fps=25,setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=0.3" \
+            -frames:v 701 -an -c:v libx264 -preset slow -crf 18 -maxrate 14M -bufsize 28M -profile:v high -level 4.2 -pix_fmt yuv420p -g 50 -video_track_timescale 12800 work/v7/final/01.mp4
+          ffmpeg -hide_banner -loglevel error -y -loop 1 -framerate 25 -i work/v7/logo.png \
+            -vf "scale=980:980:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0xfffcf8,fps=25,format=yuv420p,fade=t=in:st=0:d=0.35" \
+            -frames:v 65 -an -c:v libx264 -preset slow -crf 18 -maxrate 14M -bufsize 28M -profile:v high -level 4.2 -pix_fmt yuv420p -g 50 -video_track_timescale 12800 work/v7/final/02.mp4
+          printf "file '01.mp4'\nfile '02.mp4'\n" > work/v7/final/list.txt
+          (cd work/v7/final && ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i list.txt -c copy ../video_only.mp4)
+          ffmpeg -hide_banner -loglevel error -y -i work/v7/video_only.mp4 -i deliverables/V6_original_Gemini_voice.wav \
+            -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 256k -ar 48000 \
+            -t 30.64 -movflags +faststart deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4
+          ffmpeg -hide_banner -loglevel error -y -ss 3 -i deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4 \
+            -frames:v 1 -q:v 2 deliverables/XingDai_V7_Outdoor_Preview.jpg
+          # 6 representative frames, 3 columns x 2 rows, for visual identity / performance review.
+          ffmpeg -hide_banner -loglevel error -y -i deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4 \
+            -vf "select='eq(n,25)+eq(n,125)+eq(n,250)+eq(n,375)+eq(n,500)+eq(n,675)',scale=180:320,tile=3x2" \
+            -vsync vfr -frames:v 1 -q:v 5 deliverables/V7_contact_sheet.jpg
+      - name: Verify all deliverables
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,subprocess,os
+          p='deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4'
+          j=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_streams','-show_format','-of','json',p]))
+          d=float(j['format']['duration'])
+          v=[s for s in j['streams'] if s['codec_type']=='video']
+          a=[s for s in j['streams'] if s['codec_type']=='audio']
+          assert 30.55<=d<=30.75,d
+          assert len(v)==1 and len(a)==1
+          assert (v[0]['width'],v[0]['height'])==(1080,1920)
+          assert v[0]['codec_name']=='h264' and a[0]['codec_name']=='aac'
+          assert os.path.getsize(p)>10000000
+          print('VERIFIED_V7',d,os.path.getsize(p),v[0]['avg_frame_rate'],j['format'].get('bit_rate'))
+          PY
+          ffmpeg -hide_banner -loglevel error -i deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4 -f null - </dev/null
+      - name: Publish full commercial and motion evidence
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4 deliverables/XingDai_V7_Outdoor_Preview.jpg deliverables/V7_contact_sheet.jpg deliverables/V7_Final_Motion_QA.json
+          git commit -m "Deliver V7 outdoor commercial with genuine camera motion and original lip-synced Gemini speech" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
