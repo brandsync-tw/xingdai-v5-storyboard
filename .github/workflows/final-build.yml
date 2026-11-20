@@ -1,0 +1,44 @@
+name: Build and publish V5 MP4 deliverable
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/final-build.yml'
+      - 'scripts/build_final_v5.sh'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check tools
+        run: |
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+      - name: Download optimized approved logo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/assets
+          curl --fail --location --retry 5 --silent --show-error 'https://v3b.fal.media/files/b/0ab306dc/nDEDdW6BbL3yhFylyjIe4_a_clean_modern_high_quality_brand_logo_on_a_whit.png' -o site/assets/optimized-logo.png
+          test "$(wc -c < site/assets/optimized-logo.png)" -gt 10000
+      - name: Render full 30.64-second commercial
+        shell: bash
+        run: bash scripts/build_final_v5.sh
+      - name: Publish MP4 to repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deliverables
+          cp site/assets/XingDai_V5_Full_NoSubtitles.mp4 deliverables/XingDai_V5_Full_NoSubtitles.mp4
+          cp site/assets/V5-final-preview.jpg deliverables/V5-final-preview.jpg
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/
+          git commit -m "Deliver V5 30.64s final no-subtitles MP4" || exit 0
+          git push origin HEAD:main
