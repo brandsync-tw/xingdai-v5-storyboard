@@ -48,9 +48,14 @@ jobs:
           curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab33718/8XuzhM6IPC-PTH8ApQTXE_video.mp4' -o 'site/assets/C-to-D-turn-test.mp4'
           test "$(wc -c < 'site/assets/C-to-D-turn-test.mp4')" -gt 100000
           echo "All 7 images and four motion tests downloaded"
-      - name: Build complete V5 commercial video
+      - name: Include verified complete V5 MP4
         shell: bash
-        run: bash scripts/build_final_v5.sh
+        run: |
+          set -euo pipefail
+          test -s deliverables/XingDai_V5_Full_NoSubtitles.mp4
+          cp deliverables/XingDai_V5_Full_NoSubtitles.mp4 site/assets/XingDai_V5_Full_NoSubtitles.mp4
+          cp deliverables/V5-final-preview.jpg site/assets/V5-final-preview.jpg
+          test "$(wc -c < site/assets/XingDai_V5_Full_NoSubtitles.mp4)" -gt 1000000
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
