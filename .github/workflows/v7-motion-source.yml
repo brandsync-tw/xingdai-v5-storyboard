@@ -1,0 +1,105 @@
+name: V7 motion-first camera verification and sync input
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/v7-motion-source.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install FFmpeg and image motion QA
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --break-system-packages -q opencv-python-headless numpy
+      - name: Download 1080p physical camera-motion shots
+        run: |
+          set -euo pipefail
+          mkdir -p work/v7 deliverables
+          curl --fail --location --retry 5 --silent --show-error 'https://v3b.fal.media/files/b/0ab33e96/tDusk12v6tEHO9o9dXfQY_video.mp4' -o work/v7/walk.mp4
+          curl --fail --location --retry 5 --silent --show-error 'https://v3b.fal.media/files/b/0ab33ea3/1G1ZRGTUJmmxrlRa4f_x6_video.mp4' -o work/v7/side.mp4
+          curl --fail --location --retry 5 --silent --show-error 'https://v3b.fal.media/files/b/0ab33ea3/Kqu2z0k5mmR11_ZRXvQB4_video.mp4' -o work/v7/close.mp4
+          test -s deliverables/V6_original_Gemini_voice.wav
+          for f in work/v7/{walk,side,close}.mp4; do
+            test "$(wc -c < "$f")" -gt 500000
+            ffprobe -v error -show_entries format=duration -show_entries stream=width,height -of default=nw=1 "$f"
+          done
+      - name: Measure real background displacement and parallax
+        run: |
+          python3 - <<'PY'
+          import cv2,numpy as np,json
+          paths=['work/v7/walk.mp4','work/v7/side.mp4','work/v7/close.mp4']
+          out=[]
+          for p in paths:
+              cap=cv2.VideoCapture(p)
+              fps=cap.get(cv2.CAP_PROP_FPS)
+              n=cap.get(cv2.CAP_PROP_FRAME_COUNT)
+              dur=n/fps
+              imgs=[]
+              for t in [0.5,dur/2,dur-0.5]:
+                  cap.set(cv2.CAP_PROP_POS_MSEC,1000*t)
+                  ok,f=cap.read()
+                  if not ok: raise RuntimeError('Cannot read sample frame: '+p)
+                  imgs.append(cv2.cvtColor(cv2.resize(f,(450,800)),cv2.COLOR_BGR2GRAY))
+              cap.release()
+              measurements=[]
+              for a,b in zip(imgs,imgs[1:]):
+                  mask=np.zeros_like(a)
+                  mask[120:680,0:110]=255
+                  mask[120:680,340:450]=255
+                  pts=cv2.goodFeaturesToTrack(a,maxCorners=300,qualityLevel=.01,minDistance=7,mask=mask)
+                  if pts is None or len(pts)<8: raise RuntimeError('Too few background features: '+p)
+                  nxt,st,err=cv2.calcOpticalFlowPyrLK(a,b,pts,None,winSize=(21,21),maxLevel=4)
+                  good=st.reshape(-1)==1
+                  disp=np.linalg.norm(nxt[good]-pts[good],axis=1)
+                  measurements.append({'features':int(good.sum()),'median_px':round(float(np.median(disp)),2),'p75_px':round(float(np.percentile(disp,75)),2)})
+              out.append({'clip':p,'duration':round(dur,3),'background_motion':measurements})
+          print('MOTION_QA',json.dumps(out,ensure_ascii=False))
+          with open('deliverables/V7_motion_QA.json','w') as f:json.dump(out,f,indent=2)
+          # This verifies background actually changes; it cannot certify identity or natural performance.
+          assert all(max(x['median_px'] for x in z['background_motion'])>=3 for z in out), 'A clip has no measurable background movement'
+          PY
+      - name: Make exactly 28.04 seconds of motion with source geometry intact
+        run: |
+          set -euo pipefail
+          mkdir -p work/v7/cuts
+          ffmpeg -hide_banner -loglevel error -y -i work/v7/walk.mp4 \
+            -vf "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setpts=1.088*(PTS-STARTPTS),fps=25,setsar=1,format=yuv420p" \
+            -frames:v 272 -an -c:v libx264 -preset medium -crf 18 -profile:v high -pix_fmt yuv420p -video_track_timescale 12800 work/v7/cuts/01.mp4
+          ffmpeg -hide_banner -loglevel error -y -i work/v7/side.mp4 \
+            -vf "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,fps=25,setsar=1,format=yuv420p" \
+            -frames:v 244 -an -c:v libx264 -preset medium -crf 18 -profile:v high -pix_fmt yuv420p -video_track_timescale 12800 work/v7/cuts/02.mp4
+          ffmpeg -hide_banner -loglevel error -y -i work/v7/close.mp4 \
+            -vf "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,fps=25,setsar=1,format=yuv420p" \
+            -frames:v 185 -an -c:v libx264 -preset medium -crf 18 -profile:v high -pix_fmt yuv420p -video_track_timescale 12800 work/v7/cuts/03.mp4
+          printf "file '01.mp4'\nfile '02.mp4'\nfile '03.mp4'\n" > work/v7/cuts/list.txt
+          (cd work/v7/cuts && ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i list.txt -c copy ../../../deliverables/V7_MotionFirst_28s_NoAudio.mp4)
+          ffmpeg -hide_banner -loglevel error -y -i deliverables/V6_original_Gemini_voice.wav \
+            -t 28.04 -vn -ac 1 -ar 24000 -c:a pcm_s16le deliverables/V7_Gemini_Voice_First28s.wav
+      - name: Validate sync inputs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess,json,os
+          for p in ['deliverables/V7_MotionFirst_28s_NoAudio.mp4','deliverables/V7_Gemini_Voice_First28s.wav']:
+              j=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_format','-show_streams','-of','json',p]))
+              d=float(j['format']['duration'])
+              print('SYNC_INPUT',p,d,os.path.getsize(p))
+              assert abs(d-28.04)<.06
+          PY
+      - name: Publish video and original speech for dedicated lipsync
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/V7_MotionFirst_28s_NoAudio.mp4 deliverables/V7_Gemini_Voice_First28s.wav deliverables/V7_motion_QA.json
+          git commit -m "Deliver motion-first V7 moving-camera footage and unchanged narration" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
