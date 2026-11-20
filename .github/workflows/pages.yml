@@ -54,7 +54,9 @@ jobs:
           test "$(wc -c < 'site/assets/V6-office-master.png')" -gt 10000
           test "$(wc -c < 'site/assets/V6-consultation.png')" -gt 10000
           test "$(wc -c < 'site/assets/V6-tablet.png')" -gt 10000
-          echo "V6 scene assets and V5 continuity media downloaded"
+          curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab33d41/tnEqQhh1Gw05ZlwgtLHXS_video.mp4' -o 'site/assets/V6-reference-draft-12s.mp4'
+          test "$(wc -c < 'site/assets/V6-reference-draft-12s.mp4')" -gt 100000
+          echo "V6 scene assets and 12-second reference draft downloaded"
       - name: Include verified complete V5 MP4
         shell: bash
         run: |
