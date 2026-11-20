@@ -18,7 +18,7 @@ fetch laptop 'https://v3b.fal.media/files/b/0ab338a6/dtbjjxlcuczHixoGvVzgj_video
 fetch pickup 'https://v3b.fal.media/files/b/0ab31e3e/yyzDgfGx7-1WgfreFLJeC_video.mp4'
 fetch standup 'https://v3b.fal.media/files/b/0ab31e82/vuNbL04R_OT-T6e3i80Cu_video.mp4'
 fetch phone 'https://v3b.fal.media/files/b/0ab3389c/ujxhq_Zq9o9A0ERZY8wmg_video.mp4'
-fetch tote '__TOTE_URL__'
+fetch tote 'https://v3b.fal.media/files/b/0ab338ad/o3lgdBgzXVfzEDVlLkYd0_video.mp4'
 fetch closing 'https://v3b.fal.media/files/b/0ab2fb0f/_67sWIMzqk03u_M8UHiCm_video.mp4'
 fetch original_with_voice 'https://v3b.fal.media/files/b/0ab2fc87/LmxpaCExrjb9nl8p9UsUK_combined_output.mp4'
 
