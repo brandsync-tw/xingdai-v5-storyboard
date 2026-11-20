@@ -25,6 +25,7 @@ jobs:
           mkdir -p site/assets
           cp index.html site/index.html
           cp v6.html site/v6.html
+          cp v7.html site/v7.html
           touch site/.nojekyll
           curl --fail --location --retry 3 --silent --show-error 'https://v3b.fal.media/files/b/0ab2f3e2/xCTh905v0SRJT21J0qmAq_bkKntxqg.png' -o 'site/assets/scene-master.png'
           test "$(wc -c < 'site/assets/scene-master.png')" -gt 10000
@@ -68,6 +69,9 @@ jobs:
           cp deliverables/XingDai_V6_Outdoor_Preview.jpg site/assets/XingDai_V6_Outdoor_Preview.jpg
           cp deliverables/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4 site/assets/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4
           cp deliverables/XingDai_V6_Outdoor_1080p_Preview.jpg site/assets/XingDai_V6_Outdoor_1080p_Preview.jpg
+          cp deliverables/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4 site/assets/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4
+          cp deliverables/XingDai_V7_Outdoor_Preview.jpg site/assets/V7-preview.jpg
+          test "$(wc -c < site/assets/XingDai_V7_Outdoor_MovingCamera_1080p_NoSubtitles.mp4)" -gt 10000000
           test "$(wc -c < site/assets/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4)" -gt 10000000
           test "$(wc -c < site/assets/XingDai_V6_Outdoor_Final_NoSubtitles.mp4)" -gt 1000000
           test "$(wc -c < site/assets/XingDai_V5_Full_NoSubtitles.mp4)" -gt 1000000
