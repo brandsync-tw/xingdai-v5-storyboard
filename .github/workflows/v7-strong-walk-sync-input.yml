@@ -1,0 +1,43 @@
+name: Prepare stronger walking opening with original Gemini audio
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/v7-strong-walk-sync-input.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Build 10.88s walking opener and original speech
+        run: |
+          set -euo pipefail
+          mkdir -p work/v7 deliverables
+          curl --fail --location --retry 5 --silent --show-error 'https://v3b.fal.media/files/b/0ab33ef0/NcZzaoLRNVrBxs9Xy57NL_video.mp4' -o work/v7/strongwalk.mp4
+          ffmpeg -hide_banner -loglevel error -y -i work/v7/strongwalk.mp4 \
+            -vf "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setpts=1.088*(PTS-STARTPTS),fps=25,setsar=1,format=yuv420p" \
+            -frames:v 272 -an -c:v libx264 -preset medium -crf 18 -profile:v high -pix_fmt yuv420p -video_track_timescale 12800 deliverables/V7_StrongWalk_10p88s_NoAudio.mp4
+          ffmpeg -hide_banner -loglevel error -y -i deliverables/V6_original_Gemini_voice.wav \
+            -t 10.88 -ac 1 -ar 24000 -c:a pcm_s16le deliverables/V7_Gemini_First10p88s.wav
+          python3 - <<'PY'
+          import subprocess,json
+          for p in ['deliverables/V7_StrongWalk_10p88s_NoAudio.mp4','deliverables/V7_Gemini_First10p88s.wav']:
+              d=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_format','-of','json',p]))
+              assert abs(float(d['format']['duration'])-10.88)<.04
+          PY
+      - name: Commit sync inputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/V7_StrongWalk_10p88s_NoAudio.mp4 deliverables/V7_Gemini_First10p88s.wav
+          git commit -m "Prepare genuine walking V7 opening for original Mandarin lip sync" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
