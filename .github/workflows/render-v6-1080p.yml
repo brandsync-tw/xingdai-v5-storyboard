@@ -1,0 +1,91 @@
+name: Render V6 1080p high-quality master
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/render-v6-1080p.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Download original AI camera outputs and approved logo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/cuts deliverables
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error 'https://v3b.fal.media/files/b/0ab33dd5/lxM1Hc0amxxaRVDIu6z3-_1sxbUDhT.mp4' -o work/main.mp4
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error 'https://v3b.fal.media/files/b/0ab33ddc/uMlfO3zYRwQaplPDW-Vfz_vAE9TJpt.mp4' -o work/angle_b.mp4
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error 'https://v3b.fal.media/files/b/0ab33dde/NTWH1md-gDz7h-Wyp4-yp_6806IyUK.mp4' -o work/angle_c.mp4
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error 'https://v3b.fal.media/files/b/0ab306dc/nDEDdW6BbL3yhFylyjIe4_a_clean_modern_high_quality_brand_logo_on_a_whit.png' -o work/logo.png
+          test -s deliverables/V6_original_Gemini_voice.wav
+          for f in work/main.mp4 work/angle_b.mp4 work/angle_c.mp4; do
+            test "$(wc -c < "$f")" -gt 100000
+            ffprobe -v error -show_entries stream=width,height,r_frame_rate -show_entries format=duration -of default=nw=1 "$f"
+          done
+      - name: Edit at 1080 x 1920 without 720p intermediate
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 25 fps source-aligned; 272 + 244 + 185 + 65 = 766 frames = 30.64 seconds.
+          # Same shot order, same original Gemini narration, same logo; no subtitles.
+          encode() {
+            local input="$1" frames="$2" output="$3"
+            ffmpeg -hide_banner -loglevel error -y -i "$input" \
+              -vf "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,fps=25,setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=0.4" \
+              -frames:v "$frames" -an -c:v libx264 -preset slow -profile:v high -level 4.2 \
+              -b:v 10M -maxrate 12M -bufsize 24M -pix_fmt yuv420p -g 50 -video_track_timescale 12800 \
+              "$output"
+          }
+          encode work/main.mp4 272 work/cuts/01.mp4
+          encode work/angle_b.mp4 244 work/cuts/02.mp4
+          encode work/angle_c.mp4 185 work/cuts/03.mp4
+          ffmpeg -hide_banner -loglevel error -y -loop 1 -framerate 25 -i work/logo.png \
+            -vf "scale=980:980:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0xfffcf8,fps=25,format=yuv420p,fade=t=in:st=0:d=0.35" \
+            -frames:v 65 -an -c:v libx264 -preset slow -profile:v high -level 4.2 \
+            -b:v 10M -maxrate 12M -bufsize 24M -pix_fmt yuv420p -g 50 -video_track_timescale 12800 work/cuts/04.mp4
+          printf "file '01.mp4'\nfile '02.mp4'\nfile '03.mp4'\nfile '04.mp4'\n" > work/cuts/list.txt
+          (cd work/cuts && ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i list.txt -c copy ../silent_1080p.mp4)
+          ffmpeg -hide_banner -loglevel error -y -i work/silent_1080p.mp4 -i deliverables/V6_original_Gemini_voice.wav \
+            -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 256k -ar 48000 \
+            -t 30.64 -movflags +faststart deliverables/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4
+          ffmpeg -hide_banner -loglevel error -y -ss 2 -i deliverables/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4 \
+            -frames:v 1 -q:v 2 deliverables/XingDai_V6_Outdoor_1080p_Preview.jpg
+      - name: Verify HQ output and decode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,subprocess
+          p='deliverables/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4'
+          data=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_streams','-show_format','-of','json',p]))
+          d=float(data['format']['duration'])
+          v=[x for x in data['streams'] if x['codec_type']=='video']
+          a=[x for x in data['streams'] if x['codec_type']=='audio']
+          assert 30.55<=d<=30.75, d
+          assert len(v)==1 and len(a)==1
+          assert (v[0]['width'],v[0]['height'])==(1080,1920)
+          assert v[0]['codec_name']=='h264' and a[0]['codec_name']=='aac'
+          assert os.path.getsize(p)>10000000, os.path.getsize(p)
+          print('VERIFIED HQ:',p,'duration',d,'fps',v[0]['avg_frame_rate'],'bytes',os.path.getsize(p),'bitrate',data['format'].get('bit_rate'))
+          PY
+          ffmpeg -hide_banner -loglevel error -i deliverables/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4 -f null - </dev/null
+      - name: Commit verified high-resolution MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliverables/XingDai_V6_Outdoor_1080x1920_HQ_NoSubtitles.mp4 deliverables/XingDai_V6_Outdoor_1080p_Preview.jpg
+          git commit -m "Deliver V6 1080x1920 high-quality master from original AI clips" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
